@@ -17,8 +17,6 @@ use iced::advanced::widget::{self, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::{Element, Length, Point, Rectangle, Size, Vector, Theme, Renderer,Event};
 
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// A widget that displays content following the mouse cursor.
 pub struct MouseLayer<'a, Message, Theme = crate::Theme, Renderer = crate::Renderer>
@@ -50,7 +48,7 @@ where
 
 #[derive(Default)]
 struct State {
-    cursor_position: Rc<RefCell<Option<Point>>>,
+    cursor_position: Option<Point>,
 }
 
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -97,9 +95,26 @@ where
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        // Overlay에서만 렌더링
+       
     }
-
+    fn update(
+        &mut self,
+        tree: &mut widget::Tree,
+        _event: &Event,
+        _layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_mut::<State>();
+        let new_pos = cursor.position();        // Option<Point>
+        if state.cursor_position != new_pos{
+            state.cursor_position = new_pos;
+            shell.request_redraw();
+        }
+    }
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut widget::Tree,
@@ -113,7 +128,7 @@ where
         Some(overlay::Element::new(Box::new(Overlay {
             content: &mut self.content,
             tree: &mut tree.children[0],
-            cursor_position: state.cursor_position.clone(),
+            cursor_position: state.cursor_position,
             offset: self.offset,
             translation,
             viewport: *viewport,
@@ -141,7 +156,7 @@ where
 {
     content: &'b mut Element<'a, Message, Theme, Renderer>,
     tree: &'b mut widget::Tree,
-    cursor_position: Rc<RefCell<Option<Point>>>,
+    cursor_position: Option<Point>,
     offset: Vector,
     translation: Vector,
     viewport: Rectangle,
@@ -153,7 +168,7 @@ where
     Renderer: iced::advanced::Renderer,
 {
     fn layout(&mut self, renderer: &Renderer, _bounds: Size) -> layout::Node {
-        let cursor_pos = *self.cursor_position.borrow();
+        let cursor_pos = self.cursor_position;
         
         let Some(cursor) = cursor_pos else {
             return layout::Node::new(Size::ZERO);
@@ -187,7 +202,7 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        if self.cursor_position.borrow().is_none() {
+        if self.cursor_position.is_none() {
             return;
         }
 
@@ -215,11 +230,9 @@ where
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) {
-        // 모든 이벤트에서 cursor 업데이트
         let new_pos = cursor.position();
-        let mut cursor_ref = self.cursor_position.borrow_mut();
-        if *cursor_ref != new_pos {
-            *cursor_ref = new_pos;
+        if self.cursor_position != new_pos {
+            self.cursor_position = new_pos;
             shell.request_redraw();
         }
     }
